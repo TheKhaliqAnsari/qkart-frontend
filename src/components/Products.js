@@ -177,47 +177,53 @@ const Products = () => {
 
 
   const isItemInCart = (items, productId) => {
-    return items.find((item) => item.productId === productId) !== -1;
+    return items.findIndex((item) => item.productId === productId) !== -1;
   };
 
-  const addToCart = async (token, items, productId, qty) => {
+
+  // Add to cart function
+  const addToCart = async (token, items, productId, products, qty, options = { preventDefault : false}) => {
     if (!token) {
       enqueueSnackbar("Please log in to add item to cart", {
         variant: "warning",
       });
       return;
     }
-    if (isItemInCart(items, productId)) {
+    if (options.preventDuplicate && isItemInCart(items, productId)) {
       enqueueSnackbar(
         "Item already in cart. Use the cart slidebar to update quantity or remove item.",
-        { variant: "warning" }
+        { variant: "warning" },
       );
       return;
     }
-    try{
+    try {
       const response = await axios.post(
         `${config.endpoint}/cart`,
         { productId, qty },
         {
-          headers:{
+          headers: {
             Authorization: `Bearer ${token}`,
           },
         }
       );
-      const cartItems = generateCartItemsFrom(responce.data,products)
+      console.log(response.data,"asdfghj");
+      const cartItems = generateCartItemsFrom(response.data, products)
+      console.log(cartItems,"sdasdasdasdasdsadasd");
       setItems(cartItems)
-      // updateCartItems(responce.data, products);
+      // updateCartItems(response.data, products);
     } catch (e) {
-      if (e.responce) {
-        enqueueSnackbar(e.responce.data.message, { variant: "error" });
+      if (e.response) {
+        enqueueSnackbar(e.response.data.message, { variant: "error" });
       } else {
         enqueueSnackbar(
           "Could not fetch products. Check that the backend id=s running,reachable and return valid JSON",
           {
             variant: "error",
+          }
+        );
+      }
     }
-
-    console.log(" Add to cart", productId);
+    console.log("Added to cart", productId);
   };
 
   useEffect(() => {
@@ -226,11 +232,9 @@ const Products = () => {
   }, []);
 
   useEffect(() => {
-    fetchCart(token).then((cartData) =>
-      generateCartItemsFrom(cartData, products).then((cartItems) =>
-        setItems(cartItems)
-      )
-    );
+    fetchCart(token)
+      .then((cartData) => generateCartItemsFrom(cartData, products))
+      .then((cartItems) => setItems(cartItems));
   }, [products]);
 
   return (
@@ -294,7 +298,7 @@ const Products = () => {
                       <ProductCard
                         product={product}
                         handleAddToCart={async () => {
-                          await addToCart(token, product._id);
+                          await addToCart(token, items, product._id, products, 1, {preventDuplicate : true});
                         }}
                       />
                     </Grid>
@@ -313,7 +317,7 @@ const Products = () => {
         {/* <ProductCard /> */}
         {token ? (
           <Grid item xs={12} md={3} bg="#E9F5E1">
-            <Cart />
+            <Cart products={products} items={items} handleQuantity={addToCart}/>
           </Grid>
         ) : null}
       </Grid>
