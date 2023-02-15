@@ -14,6 +14,7 @@ import Footer from "./Footer";
 import "./Products.css";
 import Header from "./Header";
 import ProductCard from "./ProductCard";
+import Cart, { generateCartItemsFrom } from "./Cart";
 
 // Definition of Data Structures used
 /**
@@ -28,11 +29,13 @@ import ProductCard from "./ProductCard";
  */
 
 const Products = () => {
+  const token = localStorage.getItem("token");
   const { enqueueSnackbar } = useSnackbar();
   const [isLoading, setLoading] = useState(false);
   const [products, setProducts] = useState([]);
   const [filteredProducts, setFilteredProducts] = useState({});
   const [debounceTimeout, setDebounceTimeout] = useState(null);
+  const [items, setItems] = useState([]);
   // TODO: CRIO_TASK_MODULE_PRODUCTS - Fetch products data and store it
   /**
    * Make API call to get the products list and store it to display the products
@@ -143,22 +146,92 @@ const Products = () => {
    */
   const debounceSearch = (event, debounceTimeout) => {
     const value = event.target.value;
-     
-    if(debounceTimeout){
-      clearTimeout(debounceTimeout); 
+
+    if (debounceTimeout) {
+      clearTimeout(debounceTimeout);
     }
 
-    const timeout = setTimeout(async ()=> {
-       await performSearch(value);
-    }, 500 )
+    const timeout = setTimeout(async () => {
+      await performSearch(value);
+    }, 500);
     setDebounceTimeout(timeout);
+  };
 
+  const fetchCart = async (token) => {
+    if (!token) return;
+    try {
+      const response = await axios.get(`${config.endpoint}/cart`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      return response.data;
+    } catch {
+      enqueueSnackbar(
+        "Could not fetch cart details. check that the backend is running, reachable and return valid JSON.",
+        { variant: "error" }
+      );
+      return null;
+    }
+  };
+
+
+  const isItemInCart = (items, productId) => {
+    return items.find((item) => item.productId === productId) !== -1;
+  };
+
+  const addToCart = async (token, items, productId, qty) => {
+    if (!token) {
+      enqueueSnackbar("Please log in to add item to cart", {
+        variant: "warning",
+      });
+      return;
+    }
+    if (isItemInCart(items, productId)) {
+      enqueueSnackbar(
+        "Item already in cart. Use the cart slidebar to update quantity or remove item.",
+        { variant: "warning" }
+      );
+      return;
+    }
+    try{
+      const response = await axios.post(
+        `${config.endpoint}/cart`,
+        { productId, qty },
+        {
+          headers:{
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+      const cartItems = generateCartItemsFrom(responce.data,products)
+      setItems(cartItems)
+      // updateCartItems(responce.data, products);
+    } catch (e) {
+      if (e.responce) {
+        enqueueSnackbar(e.responce.data.message, { variant: "error" });
+      } else {
+        enqueueSnackbar(
+          "Could not fetch products. Check that the backend id=s running,reachable and return valid JSON",
+          {
+            variant: "error",
+    }
+
+    console.log(" Add to cart", productId);
   };
 
   useEffect(() => {
     performAPICall();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    fetchCart(token).then((cartData) =>
+      generateCartItemsFrom(cartData, products).then((cartItems) =>
+        setItems(cartItems)
+      )
+    );
+  }, [products]);
 
   return (
     <div>
@@ -197,42 +270,53 @@ const Products = () => {
         onChange={(e) => debounceSearch(e, debounceTimeout)}
       />
       <Grid container>
-        <Grid item className="product-grid">
-          <Box className="hero">
-            <p className="hero-heading">
-              India’s <span className="hero-highlight">FASTEST DELIVERY</span>{" "}
-              to your door step
-            </p>
-          </Box>
-        </Grid>
-        {isLoading ? (
-          <Box className="loading">
-            <CircularProgress />
-            <h4>Loading Products...</h4>
-          </Box>
-        ) : (
-          <Grid container marginY="1rem" paddingX="1rem" spacing={2}>
-            {filteredProducts.length ? (
-              filteredProducts.map((product) => (
-                <Grid item xs={6} md={3} key={product._id}>
-                  <ProductCard
-                    product={product}
-                    handleAddToCart={() => {
-                      console.log("Added to cart", product.name);
-                    }}
-                  />
-                </Grid>
-              ))
-            ) : (
-              <Box className="loading">
-                <SentimentDissatisfied color="action" />
-                <h4 style={{ color: "#636363 " }}>No products found</h4>
+        <Grid item className="product-grid" md={token ? 9 : 12}>
+          <Grid container>
+            <Grid item className="product-grid" padding={"1rem"}>
+              <Box className="hero">
+                <p className="hero-heading">
+                  India’s{" "}
+                  <span className="hero-highlight">FASTEST DELIVERY</span> to
+                  your door step
+                </p>
               </Box>
+            </Grid>
+            {isLoading ? (
+              <Box className="loading">
+                <CircularProgress />
+                <h4>Loading Products...</h4>
+              </Box>
+            ) : (
+              <Grid container marginY="1rem" paddingX="1rem" spacing={2}>
+                {filteredProducts.length ? (
+                  filteredProducts.map((product) => (
+                    <Grid item xs={6} md={3} key={product._id}>
+                      <ProductCard
+                        product={product}
+                        handleAddToCart={async () => {
+                          await addToCart(token, product._id);
+                        }}
+                      />
+                    </Grid>
+                  ))
+                ) : (
+                  <Box className="loading">
+                    <SentimentDissatisfied color="action" />
+                    <h4 style={{ color: "#636363 " }}>No products found</h4>
+                  </Box>
+                )}
+              </Grid>
             )}
           </Grid>
-        )}
+        </Grid>
+
+        {/* <ProductCard /> */}
+        {token ? (
+          <Grid item xs={12} md={3} bg="#E9F5E1">
+            <Cart />
+          </Grid>
+        ) : null}
       </Grid>
-      {/* <ProductCard /> */}
       <Footer />
     </div>
   );
