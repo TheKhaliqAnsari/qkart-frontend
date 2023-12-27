@@ -80,6 +80,7 @@ const Products = () => {
       setLoading(false);
       setProducts(response.data);
       setFilteredProducts(response.data);
+      
     } catch (e) {
       setLoading(false);
       if (e.response && e.response.status === 500) {
